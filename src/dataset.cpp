@@ -32,14 +32,32 @@ using namespace std;
 int dataset::write_wordmap(string wordmapfile, mapword2id * pword2id) {
     FILE * fout = fopen(wordmapfile.c_str(), "w");
     if (!fout) {
-	printf("Cannot open file %s to write!\n", wordmapfile.c_str());
-	return 1;
+		printf("Cannot open file %s to write!\n", wordmapfile.c_str());
+		return 1;
     }    
     
     mapword2id::iterator it;
     fprintf(fout, "%d\n", pword2id->size());
     for (it = pword2id->begin(); it != pword2id->end(); it++) {
-	fprintf(fout, "%s %d\n", (it->first).c_str(), it->second);
+		fprintf(fout, "%s %d\n", (it->first).c_str(), it->second);
+    }
+    
+    fclose(fout);
+    
+    return 0;
+}
+
+int dataset::write_linkmap(string linkmapfile, maplink2id * plink2id) {
+    FILE * fout = fopen(linkmapfile.c_str(), "w");
+    if (!fout) {
+		printf("Cannot open file %s to write!\n", linkmapfile.c_str());
+		return 1;
+    }    
+    
+    maplink2id::iterator it;
+    fprintf(fout, "%d\n", plink2id->size());
+    for (it = plink2id->begin(); it != plink2id->end(); it++) {
+		fprintf(fout, "%s %d\n", (it->first).c_str(), it->second);
     }
     
     fclose(fout);
@@ -116,8 +134,8 @@ int dataset::read_trndata(string dfile, string wordmapfile) {
     
     FILE * fin = fopen(dfile.c_str(), "r");
     if (!fin) {
-	printf("Cannot open file %s to read!\n", dfile.c_str());
-	return 1;
+		printf("Cannot open file %s to read!\n", dfile.c_str());
+		return 1;
     }   
     
     mapword2id::iterator it;    
@@ -128,15 +146,15 @@ int dataset::read_trndata(string dfile, string wordmapfile) {
     fgets(buff, BUFF_SIZE_LONG - 1, fin);
     M = atoi(buff);
     if (M <= 0) {
-	printf("No document available!\n");
-	return 1;
+		printf("No document available!\n");
+		return 1;
     }
     
     // allocate memory for corpus
     if (docs) {
-	deallocate();
+		deallocate();
     } else {
-	docs = new document*[M];
+		docs = new document*[M];
     }
     
     // set number of words to zero
@@ -161,12 +179,12 @@ int dataset::read_trndata(string dfile, string wordmapfile) {
 	for (int j = 0; j < length; j++) {
 	    it = word2id.find(strtok.token(j));
 	    if (it == word2id.end()) {
-		// word not found, i.e., new word
-		pdoc->words[j] = word2id.size();
-		word2id.insert(pair<string, int>(strtok.token(j), word2id.size()));
+			// word not found, i.e., new word
+			pdoc->words[j] = word2id.size();
+			word2id.insert(pair<string, int>(strtok.token(j), word2id.size()));
 	    } else {
-		pdoc->words[j] = it->second;
-	    }
+			pdoc->words[j] = it->second;
+		}
 	}
 	
 	// add new doc to the corpus
@@ -186,7 +204,82 @@ int dataset::read_trndata(string dfile, string wordmapfile) {
     return 0;
 }
 
-int dataset::read_newdata(string dfile, string wordmapfile) {
+int dataset::read_ltrndata(string lfile, string linkmapfile) {
+    maplink2id link2id;
+    
+    FILE * fin = fopen(lfile.c_str(), "r");
+    if (!fin) {
+		printf("Cannot open file %s to read!\n", lfile.c_str());
+		return 1;
+    } 
+    
+    maplink2id::iterator it;    
+    char buff[BUFF_SIZE_LONG];
+    string line;
+    
+    // get the number of documents
+    fgets(buff, BUFF_SIZE_LONG - 1, fin);
+    M = atoi(buff);
+    if (M <= 0) {
+		printf("No document available!\n");
+		return 1;
+    }
+    
+    // allocate memory for corpus
+    if (ldocs) {
+		deallocate();
+    } else {
+		ldocs = new document*[M];
+    }
+    
+    // set number of links to zero
+    L = 0;
+    
+    for (int i = 0; i < M; i++) {
+		fgets(buff, BUFF_SIZE_LONG - 1, fin);
+		line = buff;
+		strtokenizer strtok(line, " \t\r\n");
+		int length = strtok.count_tokens();
+
+		if (length <= 0) {
+		    printf("Invalid (empty) document!\n");
+		    deallocate();
+		    M = L = 0;
+		    return 1;
+		}
+		
+		// allocate new document
+		document * pdoc = new document(length);
+		
+		for (int j = 0; j < length; j++) {
+		    it = link2id.find(strtok.token(j));
+		    if (it == link2id.end()) {
+				// link not found, i.e., new link
+				pdoc->words[j] = link2id.size();
+				link2id.insert(pair<string, int>(strtok.token(j), link2id.size()));
+		    } else {
+				pdoc->words[j] = it->second;
+			}
+		}
+		
+		// add new doc to the corpus
+		add_ldoc(pdoc, i);
+    }
+    
+    fclose(fin);
+    
+    // write link map to file
+    if (write_linkmap(linkmapfile, &link2id)) {
+	return 1;
+    }
+    
+    // update number of links
+    L = link2id.size();
+    
+    return 0;
+}
+
+/*int dataset::read_newdata(string dfile, string wordmapfile) {
     mapword2id word2id;
     map<int, int> id2_id;
     
@@ -356,5 +449,5 @@ int dataset::read_newdata_withrawstrs(string dfile, string wordmapfile) {
     V = id2_id.size();
     
     return 0;
-}
+}*/
 

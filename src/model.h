@@ -42,6 +42,7 @@ class model {
 public:
     // fixed options
     string wordmapfile;		// file that contains word map [string -> integer id]
+    string linkmapfile;      // file that contains link map [string -> integer id]
     string trainlogfile;	// training log file
     string tassign_suffix;	// suffix for topic assignment file
     string theta_suffix;	// suffix for theta file
@@ -50,7 +51,8 @@ public:
     string twords_suffix;	// suffix for file containing words-per-topics
 
     string dir;			// model directory
-    string dfile;		// data file    
+    string dfile;		// data file
+    string lfile;       // link file    
     string model_name;		// model name
     int model_status;		// model status:
 				// MODEL_STATUS_UNKNOWN: unknown status
@@ -66,9 +68,9 @@ public:
     // --- model parameters and variables ---    
     int M; // dataset size (i.e., number of docs)
     int V; // vocabulary size
-    int L; // number of links;
+    int L; // number of links
     int K; // number of topics
-    double alpha, beta; // LDA hyperparameters 
+    double alpha, beta, omega; // LDA hyperparameters 
     int niters; // number of Gibbs sampling iterations
     int liter; // the iteration at which the model was saved
     int savestep; // saving period
@@ -84,6 +86,14 @@ public:
     double ** theta; // theta: document-topic distributions, size M x K
     double ** phi; // phi: topic-word distributions, size K x V
     
+    double * lp; // temp variable for sampling
+    int ** lz; // topic assignments for links, size M x doc.size()
+    int ** lnw; // cwt[i][j]: number of instances of word/term i assigned to topic j, size L x K
+    int ** lnd; // na[i][j]: number of links in document i assigned to topic j, size M x K
+    int * lnwsum; // nwsum[j]: total number of links assigned to topic j, size K
+    int * lndsum; // nasum[i]: total number of links in document i, size M
+    double ** gama; // phi: topic- distributions, size K x L
+
     // for inference only
     int inf_liter;
     int newM;
@@ -142,6 +152,7 @@ public:
     // estimate LDA model using Gibbs sampling
     void estimate();
     int sampling(int m, int n);
+    int lsampling(int m, int n);
     void compute_theta();
     void compute_phi();
     
@@ -152,6 +163,8 @@ public:
     int inf_sampling(int m, int n);
     void compute_newtheta();
     void compute_newphi();
+
+    void show_data();
 };
 
 #endif

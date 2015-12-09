@@ -32,6 +32,8 @@ using namespace std;
 
 // map of words/terms [string => int]
 typedef map<string, int> mapword2id;
+// map of links [string => int]
+typedef map<string, int> maplink2id;
 // map of words/terms [int => string]
 typedef map<int, string> mapid2word;
 
@@ -99,76 +101,89 @@ public:
 class dataset {
 public:
     document ** docs;
+    document ** ldocs;
     document ** _docs; // used only for inference
     map<int, int> _id2id; // also used only for inference
     int M; // number of documents
     int V; // number of words
+    int L; // number of links
     
     dataset() {
-	docs = NULL;
-	_docs = NULL;
-	M = 0;
-	V = 0;
+		docs = NULL;
+		_docs = NULL;
+		M = 0;
+		V = 0;
+		L = 0;
     }
     
     dataset(int M) {
-	this->M = M;
-	this->V = 0;
-	docs = new document*[M];	
-	_docs = NULL;
+		this->M = M;
+		this->V = 0;
+		this->L = 0;
+		docs = new document*[M];	
+		_docs = NULL;
     }   
     
     ~dataset() {
-	if (docs) {
-	    for (int i = 0; i < M; i++) {
-		delete docs[i];
-	    }
-	}
-	delete docs;
-	
-	if (_docs) {
-	    for (int i = 0; i < M; i++) {
-		delete _docs[i];		
-	    }
-	}
-	delete _docs;	
+		if (docs) {
+		    for (int i = 0; i < M; i++) {
+			delete docs[i];
+		    }
+		}
+		delete docs;
+		
+		if (_docs) {
+		    for (int i = 0; i < M; i++) {
+			delete _docs[i];		
+		    }
+		}
+		delete _docs;	
     }
     
     void deallocate() {
-	if (docs) {
-	    for (int i = 0; i < M; i++) {
-		delete docs[i];
-	    }
-	}
-	delete docs;
-	docs = NULL;
+		if (docs) {
+		    for (int i = 0; i < M; i++) {
+			delete docs[i];
+		    }
+		}
+		delete docs;
+		docs = NULL;
 
-	if (_docs) {
-	    for (int i = 0; i < M; i++) {
-		delete _docs[i];
-	    }
-	}
-	delete _docs;
-	_docs = NULL;
+		if (_docs) {
+		    for (int i = 0; i < M; i++) {
+			delete _docs[i];
+		    }
+		}
+		delete _docs;
+		_docs = NULL;
     }
     
     void add_doc(document * doc, int idx) {
-	if (0 <= idx && idx < M) {
-	    docs[idx] = doc;
-	}
+		if (0 <= idx && idx < M) {
+		    docs[idx] = doc;
+		}
     }   
     
+    void add_ldoc(document * doc, int idx) {
+		if (0 <= idx && idx < M) {
+		    ldocs[idx] = doc;
+		}
+    }
+
     void _add_doc(document * doc, int idx) {
-	if (0 <= idx && idx < M) {
-	    _docs[idx] = doc;
-	}
+		if (0 <= idx && idx < M) {
+		    _docs[idx] = doc;
+		}
     }       
 
     static int write_wordmap(string wordmapfile, mapword2id * pword2id);
     static int read_wordmap(string wordmapfile, mapword2id * pword2id);
     static int read_wordmap(string wordmapfile, mapid2word * pid2word);
     
+	static int write_linkmap(string linkmapfile, maplink2id * plink2id);
+
     int read_trndata(string dfile, string wordmapfile);
+    int read_ltrndata(string lfile, string linkmapfile);
     int read_newdata(string dfile, string wordmapfile);
     int read_newdata_withrawstrs(string dfile, string wordmapfile);
 };

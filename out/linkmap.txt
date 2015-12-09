@@ -1,0 +1,8 @@
+7
+aa 4
+alex 0
+bb 5
+cc 1
+flash 6
+pp 2
+qq 3

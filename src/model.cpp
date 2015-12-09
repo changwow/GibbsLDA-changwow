@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <iostream>
 #include "constants.h"
 #include "strtokenizer.h"
 #include "utils.h"
@@ -153,6 +154,7 @@ model::~model() {
 
 void model::set_default_values() {
     wordmapfile = "wordmap.txt";
+    linkmapfile = "linkmap.txt";
     trainlogfile = "trainlog.txt";
     tassign_suffix = ".tassign";
     theta_suffix = ".theta";
@@ -162,6 +164,7 @@ void model::set_default_values() {
     
     dir = "./";
     dfile = "trndocs.dat";
+    lfile = "ltrndocs.dat";
     model_name = "model-final";    
     model_status = MODEL_STATUS_UNKNOWN;
     
@@ -170,9 +173,11 @@ void model::set_default_values() {
     
     M = 0;
     V = 0;
+    L = 0;
     K = 100;
     alpha = 50.0 / K;
     beta = 0.1;
+    omega = 0.1;
     niters = 2000;
     liter = 0;
     savestep = 200;    
@@ -180,6 +185,7 @@ void model::set_default_values() {
     withrawstrs = 0;
     
     p = NULL;
+    lp = NULL;
     z = NULL;
     nw = NULL;
     nd = NULL;
@@ -206,27 +212,27 @@ int model::parse_args(int argc, char ** argv) {
 int model::init(int argc, char ** argv) {
     // call parse_args
     if (parse_args(argc, argv)) {
-	return 1;
+	   return 1;
     }
     
     if (model_status == MODEL_STATUS_EST) {
-	// estimating the model from scratch
-	if (init_est()) {
-	    return 1;
-	}
-	
-    } else if (model_status == MODEL_STATUS_ESTC) {
-	// estimating the model from a previously estimated one
-	if (init_estc()) {
-	    return 1;
-	}
-	
+        // estimating the model from scratch
+        if (init_est()) {
+        	return 1;
+        }
+    	
+    }/*else if (model_status == MODEL_STATUS_ESTC) {
+    	// estimating the model from a previously estimated one
+    	if (init_estc()) {
+    	    return 1;
+    	}
+    	
     } else if (model_status == MODEL_STATUS_INF) {
-	// do inference
-	if (init_inf()) {
-	    return 1;
-	}
-    }
+    	// do inference
+    	if (init_inf()) {
+    	    return 1;
+    	}
+    }*/
     
     return 0;
 }
@@ -434,7 +440,7 @@ int model::save_model_twords(string filename) {
     return 0;    
 }
 
-int model::save_inf_model(string model_name) {
+/*int model::save_inf_model(string model_name) {
     if (save_inf_model_tassign(dir + model_name + tassign_suffix)) {
 	return 1;
     }
@@ -582,13 +588,14 @@ int model::save_inf_model_twords(string filename) {
     fclose(fout);    
     
     return 0;    
-}
+}*/
 
 
 int model::init_est() {
     int m, n, w, k;
 
     p = new double[K];
+    lp = new double[K];
 
     // + read training data
     ptrndata = new dataset;
@@ -596,10 +603,16 @@ int model::init_est() {
         printf("Fail to read training data!\n");
         return 1;
     }
-		
+
+    if (ptrndata->read_ltrndata(dir + lfile, dir + linkmapfile)) {
+        printf("Fail to read link-training data!\n");
+        return 1;
+    }
+
     // + allocate memory and assign values for variables
     M = ptrndata->M;    //number of document
     V = ptrndata->V;    //number of words
+    L = ptrndata->L;    //number of links
     // K: from command line or default value
     // alpha, beta: from command line or default values
     // niters, savestep: from command line or default values
@@ -652,6 +665,54 @@ int model::init_est() {
         ndsum[m] = N;      
     }
     
+    lnw = new int*[L];
+    for (w = 0; w < L; w++) {
+        lnw[w] = new int[K];
+        for (k = 0; k < K; k++) {
+            lnw[w][k] = 0;
+        }
+    }
+    
+    lnd = new int*[M];
+    for (m = 0; m < M; m++) {
+        lnd[m] = new int[K];
+        for (k = 0; k < K; k++) {
+            lnd[m][k] = 0;
+        }
+    }
+    
+    lnwsum = new int[K];
+    for (k = 0; k < K; k++) {
+        lnwsum[k] = 0;
+    }
+    
+    lndsum = new int[M];
+    for (m = 0; m < M; m++) {
+        lndsum[m] = 0;
+    }
+
+    srandom(time(0)); // initialize for random number generation
+    lz = new int*[M];
+    for (m = 0; m < ptrndata->M; m++) {
+        int N = ptrndata->ldocs[m]->length;
+        lz[m] = new int[N];
+    
+        // initialize for z
+        for (n = 0; n < N; n++) {
+            int topic = (int)(((double)random() / RAND_MAX) * K);
+            lz[m][n] = topic;
+            
+            // number of instances of word i assigned to topic j
+            lnw[ptrndata->ldocs[m]->words[n]][topic] += 1;
+            // number of words in document i assigned to topic j
+            lnd[m][topic] += 1;
+            // total number of words assigned to topic j
+            lnwsum[topic] += 1;
+        } 
+        // total number of words in document i
+        lndsum[m] = N;      
+    }
+
     theta = new double*[M];
     for (m = 0; m < M; m++) {
         theta[m] = new double[K];
@@ -660,12 +721,19 @@ int model::init_est() {
     phi = new double*[K];
     for (k = 0; k < K; k++) {
         phi[k] = new double[V];
-    }    
-    
+    }
+
+    gama = new double*[K];
+    for (k = 0; k < K; k++) {
+        gama[k] = new double[L];
+    }
+
+    //show_data();
+
     return 0;
 }
 
-int model::init_estc() {
+/*int model::init_estc() {
     // estimating the model from a previously estimated one
     int m, n, w, k;
 
@@ -733,7 +801,7 @@ int model::init_estc() {
     }    
 
     return 0;        
-}
+}*/
 
 void model::estimate() {
     if (twords > 0) {
@@ -750,18 +818,25 @@ void model::estimate() {
     	// for all z_i
     	for (int m = 0; m < M; m++) {
     	    for (int n = 0; n < ptrndata->docs[m]->length; n++) {
-    		// (z_i = z[m][n])
-    		// sample from p(z_i|z_-i, w)
-    		int topic = sampling(m, n);
-    		z[m][n] = topic;
+    		  // (z_i = z[m][n])
+    		  // sample from p(z_i|z_-i, w)
+    		  int topic = sampling(m, n);
+    		  z[m][n] = topic;
     	    }
+            for (int n = 0; n < ptrndata->ldocs[m]->length; n++) {
+              // (z_i = z[m][n])
+              // sample from p(z_i|z_-i, w)
+              int topic = lsampling(m, n);
+              lz[m][n] = topic;
+            }
     	}
     	
     	if (savestep > 0) {
     	    if (liter % savestep == 0) {
     		// saving the model
     		printf("Saving the model at iteration %d ...\n", liter);
-    		compute_theta();
+    		//show_data();
+            compute_theta();
     		compute_phi();
     		save_model(utils::generate_model_name(liter));
     	    }
@@ -814,23 +889,61 @@ int model::sampling(int m, int n) {
     return topic;
 }
 
+int model::lsampling(int m, int n) {
+    // remove z_i from the count variables
+    int topic = lz[m][n];
+    int w = ptrndata->ldocs[m]->words[n];
+    lnw[w][topic] -= 1;
+    lnd[m][topic] -= 1;
+    lnwsum[topic] -= 1;
+    lndsum[m] -= 1;
+
+    double Vbeta = L * omega;
+    double Kalpha = K * alpha;    
+    // do multinomial sampling via cumulative method
+    for (int k = 0; k < K; k++) {
+    lp[k] = (lnw[w][k] + beta) / (lnwsum[k] + Vbeta) *
+            (lnd[m][k] + alpha) / (lndsum[m] + Kalpha);
+    }
+    // cumulate multinomial parameters
+    for (int k = 1; k < K; k++) {
+    lp[k] += lp[k - 1];
+    }
+    // scaled sample because of unnormalized p[]
+    double u = ((double)random() / RAND_MAX) * lp[K - 1];
+    
+    for (topic = 0; topic < K; topic++) {
+    if (lp[topic] > u) {
+        break;
+    }
+    }
+    
+    // add newly estimated z_i to count variables
+    lnw[w][topic] += 1;
+    lnd[m][topic] += 1;
+    lnwsum[topic] += 1;
+    lndsum[m] += 1;
+    
+    return topic;
+}
+
 void model::compute_theta() {
     for (int m = 0; m < M; m++) {
-	for (int k = 0; k < K; k++) {
-	    theta[m][k] = (nd[m][k] + alpha) / (ndsum[m] + K * alpha);
-	}
+    	for (int k = 0; k < K; k++) {
+    	    theta[m][k] = (nd[m][k] + alpha) / (ndsum[m] + K * alpha);
+    	}
     }
 }
 
 void model::compute_phi() {
     for (int k = 0; k < K; k++) {
-	for (int w = 0; w < V; w++) {
-	    phi[k][w] = (nw[w][k] + beta) / (nwsum[k] + V * beta);
-	}
+    	for (int w = 0; w < V; w++) {
+    	    phi[k][w] = (nw[w][k] + beta) / (nwsum[k] + V * beta);
+    	}
     }
 }
 
-int model::init_inf() {
+/*int model::init_inf() {
     // estimating the model from a previously estimated one
     int m, n, w, k;
 
@@ -1054,5 +1167,99 @@ void model::compute_newphi() {
 	    }
 	}
     }
-}
+}*/
 
+void model::show_data() {
+/*
+//##############################
+    cout<<"--basic--\n";
+
+    cout<<model_status<<endl;
+    cout<<dir<<endl;
+    cout<<model_name<<endl;
+    cout<<dfile<<endl;
+    cout<<lfile<<endl;
+    cout<<alpha<<endl;
+    cout<<beta<<endl;
+    cout<<omega<<endl;
+    cout<<K<<endl;
+    cout<<niters<<endl;
+    cout<<savestep<<endl;
+    cout<<twords<<endl;
+
+//##############################
+    cout<<"--size--\n";
+
+    cout<<wordmapfile<<endl;
+    cout<<linkmapfile<<endl;
+    cout<<"M"<<M<<" V"<<V<<" L"<<L<<endl;
+
+//##############################
+    cout<<"--docs--\n";
+
+    for(int i=0;i<M;i++){
+        int len = ptrndata->docs[i]->length;
+        for(int j=0;j<len;j++)
+            cout<<ptrndata->docs[i]->words[j]<<" ";
+        cout<<endl;
+    }
+
+//##############################
+    cout<<"--ldocs--\n";
+
+    for(int i=0;i<M;i++){
+        int len = ptrndata->ldocs[i]->length;
+        for(int j=0;j<len;j++)
+            cout<<ptrndata->ldocs[i]->words[j]<<" ";
+        cout<<endl;
+    }
+*/
+//##############################
+    cout<<"--nw--\n";
+
+    for(int i=0;i<V;i++){
+        for(int j=0;j<K;j++)
+            cout<<nw[i][j]<<" ";
+        cout<<endl;
+    }
+
+//##############################
+    cout<<"--nd--\n";
+
+    for(int i=0;i<M;i++){
+        for(int j=0;j<K;j++)
+            cout<<nd[i][j]<<" ";
+        cout<<endl;
+    }
+
+//##############################
+    cout<<"--lnw--\n";
+
+    for(int i=0;i<L;i++){
+        for(int j=0;j<K;j++)
+            cout<<lnw[i][j]<<" ";
+        cout<<endl;
+    }
+
+//##############################
+    cout<<"--lnd--\n";
+
+    for(int i=0;i<M;i++){
+        for(int j=0;j<K;j++)
+            cout<<lnd[i][j]<<" ";
+        cout<<endl;
+    }
+
+//##############################
+    cout<<"--p--\n";
+
+    for(int i=0;i<=K;i++)
+        cout<<p[i]<<" ";
+    cout<<endl;
+//##############################
+    cout<<"--lp--\n";
+
+    for(int i=0;i<=K;i++)
+        cout<<lp[i]<<" ";
+    cout<<endl;
+}

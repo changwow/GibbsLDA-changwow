@@ -47,8 +47,10 @@ public:
     string tassign_suffix;	// suffix for topic assignment file
     string theta_suffix;	// suffix for theta file
     string phi_suffix;		// suffix for phi file
+    string gama_suffix;     // suffix for gama file
     string others_suffix;	// suffix for file containing other parameters
     string twords_suffix;	// suffix for file containing words-per-topics
+    string tlinks_suffix;   // suffix for file containing links-per-topics
 
     string dir;			// model directory
     string dfile;		// data file
@@ -64,6 +66,7 @@ public:
     dataset * pnewdata; // pointer to new dataset object
 
     mapid2word id2word; // word map [int => string]
+    mapid2link id2link; // link map [int => string]
     
     // --- model parameters and variables ---    
     int M; // dataset size (i.e., number of docs)
@@ -75,6 +78,7 @@ public:
     int liter; // the iteration at which the model was saved
     int savestep; // saving period
     int twords; // print out top words per each topic
+    int tlinks; // print out top links per each topic
     int withrawstrs;
 
     double * p; // temp variable for sampling
@@ -134,8 +138,10 @@ public:
     int save_model_tassign(string filename);
     int save_model_theta(string filename);
     int save_model_phi(string filename);
+    int save_model_gama(string filename);
     int save_model_others(string filename);
     int save_model_twords(string filename);
+    int save_model_tlinks(string filename);
     
     // saving inference outputs
     int save_inf_model(string model_name);
@@ -144,6 +150,7 @@ public:
     int save_inf_model_newphi(string filename);
     int save_inf_model_others(string filename);
     int save_inf_model_twords(string filename);
+    int save_inf_model_tlinks(string filename);
     
     // init for estimation
     int init_est();
@@ -163,6 +170,7 @@ public:
     int inf_sampling(int m, int n);
     void compute_newtheta();
     void compute_newphi();
+    void compute_gama();
 
     void show_data();
 };

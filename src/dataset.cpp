@@ -279,6 +279,38 @@ int dataset::read_ltrndata(string lfile, string linkmapfile) {
     return 0;
 }
 
+int dataset::read_linkmap(string linkmapfile, mapid2link * pid2link) {
+    pid2link->clear();
+    
+    FILE * fin = fopen(linkmapfile.c_str(), "r");
+    if (!fin) {
+	printf("Cannot open file %s to read!\n", linkmapfile.c_str());
+	return 1;
+    }    
+    
+    char buff[BUFF_SIZE_SHORT];
+    string line;
+    
+    fgets(buff, BUFF_SIZE_SHORT - 1, fin);
+    int nlinks = atoi(buff);
+    
+    for (int i = 0; i < nlinks; i++) {
+	fgets(buff, BUFF_SIZE_SHORT - 1, fin);
+	line = buff;
+	
+	strtokenizer strtok(line, " \t\r\n");
+	if (strtok.count_tokens() != 2) {
+	    continue;
+	}
+	
+	pid2link->insert(pair<int, string>(atoi(strtok.token(1).c_str()), strtok.token(0)));
+    }
+    
+    fclose(fin);
+    
+    return 0;
+}
+
 /*int dataset::read_newdata(string dfile, string wordmapfile) {
     mapword2id word2id;
     map<int, int> id2_id;

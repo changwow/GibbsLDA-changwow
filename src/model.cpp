@@ -46,6 +46,10 @@ model::~model() {
 	delete p;
     }
 
+    if (lp) {
+    delete lp;
+    }
+
     if (ptrndata) {
 	delete ptrndata;
     }
@@ -85,6 +89,38 @@ model::~model() {
     if (ndsum) {
 	delete ndsum;
     }
+
+    if (lz) {
+    for (int m = 0; m < M; m++) {
+        if (lz[m]) {
+        delete lz[m];
+        }
+    }
+    }
+    
+    if (lnw) {
+    for (int w = 0; w < L; w++) {
+        if (lnw[w]) {
+        delete lnw[w];
+        }
+    }
+    }
+
+    if (lnd) {
+    for (int m = 0; m < M; m++) {
+        if (lnd[m]) {
+        delete lnd[m];
+        }
+    }
+    } 
+    
+    if (lnwsum) {
+    delete lnwsum;
+    }   
+    
+    if (lndsum) {
+    delete lndsum;
+    }
     
     if (theta) {
 	for (int m = 0; m < M; m++) {
@@ -100,6 +136,14 @@ model::~model() {
 		delete phi[k];
 	    }
 	}
+    }
+
+    if (gama) {
+    for (int k = 0; k < K; k++) {
+        if (gama[k]) {
+        delete gama[k];
+        }
+    }
     }
 
     // only for inference
@@ -159,8 +203,10 @@ void model::set_default_values() {
     tassign_suffix = ".tassign";
     theta_suffix = ".theta";
     phi_suffix = ".phi";
+    gama_suffix = ".gama";
     others_suffix = ".others";
     twords_suffix = ".twords";
+    tlinks_suffix = ".tlinks";
     
     dir = "./";
     dfile = "trndocs.dat";
@@ -182,6 +228,7 @@ void model::set_default_values() {
     liter = 0;
     savestep = 200;    
     twords = 0;
+    tlinks = 0;
     withrawstrs = 0;
     
     p = NULL;
@@ -313,6 +360,10 @@ int model::save_model(string model_name) {
     if (save_model_phi(dir + model_name + phi_suffix)) {
 	return 1;
     }
+
+    if (save_model_gama(dir + model_name + gama_suffix)) {
+    return 1;
+    }
     
     if (twords > 0) {
 	if (save_model_twords(dir + model_name + twords_suffix)) {
@@ -320,6 +371,12 @@ int model::save_model(string model_name) {
 	}
     }
     
+    if (tlinks > 0) {
+    if (save_model_tlinks(dir + model_name + tlinks_suffix)) {
+        return 1;
+    }
+    }
+
     return 0;
 }
 
@@ -383,6 +440,25 @@ int model::save_model_phi(string filename) {
     return 0;
 }
 
+int model::save_model_gama(string filename) {
+    FILE * fout = fopen(filename.c_str(), "w");
+    if (!fout) {
+    printf("Cannot open file %s to save!\n", filename.c_str());
+    return 1;
+    }
+    
+    for (int i = 0; i < K; i++) {
+    for (int j = 0; j < L; j++) {
+        fprintf(fout, "%f ", gama[i][j]);
+    }
+    fprintf(fout, "\n");
+    }
+    
+    fclose(fout);    
+    
+    return 0;
+}
+
 int model::save_model_others(string filename) {
     FILE * fout = fopen(filename.c_str(), "w");
     if (!fout) {
@@ -392,6 +468,7 @@ int model::save_model_others(string filename) {
 
     fprintf(fout, "alpha=%f\n", alpha);
     fprintf(fout, "beta=%f\n", beta);
+    fprintf(fout, "omega=%f\n", omega);
     fprintf(fout, "ntopics=%d\n", K);
     fprintf(fout, "ndocs=%d\n", M);
     fprintf(fout, "nwords=%d\n", V);
@@ -433,6 +510,43 @@ int model::save_model_twords(string filename) {
 		fprintf(fout, "\t%s   %f\n", (it->second).c_str(), words_probs[i].second);
 	    }
 	}
+    }
+    
+    fclose(fout);    
+    
+    return 0;    
+}
+
+int model::save_model_tlinks(string filename) {
+    FILE * fout = fopen(filename.c_str(), "w");
+    if (!fout) {
+    printf("Cannot open file %s to save!\n", filename.c_str());
+    return 1;
+    }
+    
+    if (tlinks > L) {
+    tlinks = L;
+    }
+    mapid2link::iterator it;
+    
+    for (int k = 0; k < K; k++) {
+    vector<pair<int, double> > links_probs;
+    pair<int, double> link_prob;
+    for (int w = 0; w < L; w++) {
+        link_prob.first = w;
+        link_prob.second = gama[k][w];
+        links_probs.push_back(link_prob);
+    }    
+        // quick sort to sort link-topic probability
+    utils::quicksort(links_probs, 0, links_probs.size() - 1);
+    
+    fprintf(fout, "Topic %dth:\n", k);
+    for (int i = 0; i < tlinks; i++) {
+        it = id2link.find(links_probs[i].first);
+        if (it != id2link.end()) {
+        fprintf(fout, "\t%s   %f\n", (it->second).c_str(), links_probs[i].second);
+        }
+    }
     }
     
     fclose(fout);    
@@ -809,6 +923,11 @@ void model::estimate() {
 	dataset::read_wordmap(dir + wordmapfile, &id2word);
     }
 
+    if (tlinks > 0) {
+    // print out top links per topic
+    dataset::read_linkmap(dir + linkmapfile, &id2link);
+    }
+
     printf("Sampling %d iterations!\n", niters);
 
     int last_iter = liter;
@@ -838,6 +957,7 @@ void model::estimate() {
     		//show_data();
             compute_theta();
     		compute_phi();
+            compute_gama();
     		save_model(utils::generate_model_name(liter));
     	    }
     	}
@@ -847,6 +967,7 @@ void model::estimate() {
     printf("Saving the final model!\n");
     compute_theta();
     compute_phi();
+    compute_gama();
     liter--;
     save_model(utils::generate_model_name(-1));
 }
@@ -860,12 +981,11 @@ int model::sampling(int m, int n) {
     nwsum[topic] -= 1;
     ndsum[m] -= 1;
 
-    double Vbeta = V * beta;
-    double Kalpha = K * alpha;    
+    double Vbeta = V * beta;  
     // do multinomial sampling via cumulative method
     for (int k = 0; k < K; k++) {
 	p[k] = (nw[w][k] + beta) / (nwsum[k] + Vbeta) *
-		    (nd[m][k] + alpha) / (ndsum[m] + Kalpha);
+		    (nd[m][k] + lnd[m][k] + alpha);
     }
     // cumulate multinomial parameters
     for (int k = 1; k < K; k++) {
@@ -898,12 +1018,11 @@ int model::lsampling(int m, int n) {
     lnwsum[topic] -= 1;
     lndsum[m] -= 1;
 
-    double Vbeta = L * omega;
-    double Kalpha = K * alpha;    
+    double Lomega = L * omega; 
     // do multinomial sampling via cumulative method
     for (int k = 0; k < K; k++) {
-    lp[k] = (lnw[w][k] + beta) / (lnwsum[k] + Vbeta) *
-            (lnd[m][k] + alpha) / (lndsum[m] + Kalpha);
+    lp[k] = (lnw[w][k] + omega) / (lnwsum[k] + Lomega) *
+            (nd[m][k] + lnd[m][k] + alpha);
     }
     // cumulate multinomial parameters
     for (int k = 1; k < K; k++) {
@@ -930,7 +1049,7 @@ int model::lsampling(int m, int n) {
 void model::compute_theta() {
     for (int m = 0; m < M; m++) {
     	for (int k = 0; k < K; k++) {
-    	    theta[m][k] = (nd[m][k] + alpha) / (ndsum[m] + K * alpha);
+    	    theta[m][k] = (nd[m][k] + lnd[m][k] + alpha) / (ndsum[m] + lndsum[m] + K * alpha);
     	}
     }
 }
@@ -940,6 +1059,14 @@ void model::compute_phi() {
     	for (int w = 0; w < V; w++) {
     	    phi[k][w] = (nw[w][k] + beta) / (nwsum[k] + V * beta);
     	}
+    }
+}
+
+void model::compute_gama() {
+    for (int k = 0; k < K; k++) {
+        for (int w = 0; w < L; w++) {
+            gama[k][w] = (lnw[w][k] + omega) / (lnwsum[k] + L * omega);
+        }
     }
 }
 
@@ -1170,8 +1297,8 @@ void model::compute_newphi() {
 }*/
 
 void model::show_data() {
-/*
-//##############################
+
+    //##############################
     cout<<"--basic--\n";
 
     cout<<model_status<<endl;
@@ -1187,14 +1314,14 @@ void model::show_data() {
     cout<<savestep<<endl;
     cout<<twords<<endl;
 
-//##############################
+    //##############################
     cout<<"--size--\n";
 
     cout<<wordmapfile<<endl;
     cout<<linkmapfile<<endl;
     cout<<"M"<<M<<" V"<<V<<" L"<<L<<endl;
 
-//##############################
+    //##############################
     cout<<"--docs--\n";
 
     for(int i=0;i<M;i++){
@@ -1204,7 +1331,7 @@ void model::show_data() {
         cout<<endl;
     }
 
-//##############################
+    //##############################
     cout<<"--ldocs--\n";
 
     for(int i=0;i<M;i++){
@@ -1213,8 +1340,8 @@ void model::show_data() {
             cout<<ptrndata->ldocs[i]->words[j]<<" ";
         cout<<endl;
     }
-*/
-//##############################
+
+    //##############################
     cout<<"--nw--\n";
 
     for(int i=0;i<V;i++){
@@ -1223,7 +1350,7 @@ void model::show_data() {
         cout<<endl;
     }
 
-//##############################
+    //##############################
     cout<<"--nd--\n";
 
     for(int i=0;i<M;i++){
@@ -1232,7 +1359,7 @@ void model::show_data() {
         cout<<endl;
     }
 
-//##############################
+    //##############################
     cout<<"--lnw--\n";
 
     for(int i=0;i<L;i++){
@@ -1241,7 +1368,7 @@ void model::show_data() {
         cout<<endl;
     }
 
-//##############################
+    //##############################
     cout<<"--lnd--\n";
 
     for(int i=0;i<M;i++){
@@ -1250,13 +1377,13 @@ void model::show_data() {
         cout<<endl;
     }
 
-//##############################
+    //##############################
     cout<<"--p--\n";
 
     for(int i=0;i<=K;i++)
         cout<<p[i]<<" ";
     cout<<endl;
-//##############################
+    //##############################
     cout<<"--lp--\n";
 
     for(int i=0;i<=K;i++)

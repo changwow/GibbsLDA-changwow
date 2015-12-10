@@ -36,6 +36,8 @@ typedef map<string, int> mapword2id;
 typedef map<string, int> maplink2id;
 // map of words/terms [int => string]
 typedef map<int, string> mapid2word;
+// map of words/terms [int => string]
+typedef map<int, string> mapid2link;
 
 class document {
 public:
@@ -181,6 +183,7 @@ public:
     static int read_wordmap(string wordmapfile, mapid2word * pid2word);
     
 	static int write_linkmap(string linkmapfile, maplink2id * plink2id);
+	static int read_linkmap(string linkmapfile, mapid2link * pid2link);
 
     int read_trndata(string dfile, string wordmapfile);
     int read_ltrndata(string lfile, string linkmapfile);

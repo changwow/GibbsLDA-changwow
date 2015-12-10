@@ -44,6 +44,7 @@ int utils::parse_args(int argc, char ** argv, model * pmodel) {
     int niters = 0;
     int savestep = 0;
     int twords = 0;
+    int tlinks = 0;
     int withrawdata = 0;
 
     int i = 0; 
@@ -91,6 +92,9 @@ int utils::parse_args(int argc, char ** argv, model * pmodel) {
 		    
 		} else if (arg == "-twords") {
 		    twords = atoi(argv[++i]);
+		    
+		} else if (arg == "-tlinks") {
+		    tlinks = atoi(argv[++i]);
 		    
 		} else if (arg == "-withrawdata") {
 		    withrawdata = 1;
@@ -141,6 +145,10 @@ int utils::parse_args(int argc, char ** argv, model * pmodel) {
 		    pmodel->twords = twords;
 		}
 		
+		if (tlinks > 0) {
+		    pmodel->tlinks = tlinks;
+		}
+
 		pmodel->dfile = dfile;
 		
 		pmodel->lfile = lfile;

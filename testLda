@@ -1,0 +1,1 @@
+./lda -est -alpha 2.5 -beta 0.011 -omega 0.022 -rho 0.033 -epsilon 0.044 -ntopics 20 -niters 5 -twords 5 -tlinks 5 -dfile ./test.dat -lfile ./ltest.dat
